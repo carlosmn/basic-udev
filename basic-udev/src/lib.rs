@@ -7,7 +7,7 @@ use std::{
 };
 
 pub struct Enumerator {
-    subsystem: HashSet<String>,
+    subsystem: HashSet<PathBuf>,
 }
 
 const UDEV_ROOT: &str = "/sys";
@@ -15,20 +15,30 @@ const DEV_ROOT: &str = "/dev";
 
 impl Enumerator {
     pub fn new() -> std::io::Result<Enumerator> {
-        Ok(Enumerator { subsystem: HashSet::new() })
+        Ok(Enumerator {
+            subsystem: HashSet::new(),
+        })
     }
 
     pub fn match_subsystem(&mut self, subsystem: &str) -> std::io::Result<()> {
-        self.subsystem.insert(subsystem.to_owned());
+        self.subsystem.insert(subsystem.into());
         Ok(())
     }
 
-    pub fn scan_devices(&self) -> std::io::Result<Box<dyn Iterator<Item = Device>>> {
+    pub fn scan_devices(&mut self) -> std::io::Result<Box<dyn Iterator<Item = Device>>> {
         let mut devices = vec![];
-        let mut device_path = PathBuf::from(UDEV_ROOT);
-        device_path.push("class");
-        for subsystem in &self.subsystem {
-            device_path.push(subsystem);
+        let device_path = PathBuf::from(UDEV_ROOT).join("class");
+        let mut subsystems = self.subsystem.clone();
+
+        // If there is no subsystem specified, it seems that we have to investigate
+        // all subsystems.
+        if subsystems.is_empty() {
+            for subsystem in device_path.read_dir()? {
+                subsystems.insert(subsystem?.path().to_owned());
+            }
+        }
+        for subsystem in &subsystems {
+            let device_path = device_path.join(subsystem);
             for dir_entry in device_path.read_dir()? {
                 let dir_entry = dir_entry.unwrap();
                 if let Ok(device) = Device::from_syspath(&dir_entry.path()) {
