@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     ffi::{OsStr, OsString},
     io::{BufRead, BufReader},
     os::unix::ffi::OsStringExt,
@@ -7,7 +7,7 @@ use std::{
 };
 
 pub struct Enumerator {
-    subsystem: Option<String>,
+    subsystem: HashSet<String>,
 }
 
 const UDEV_ROOT: &str = "/sys";
@@ -15,11 +15,11 @@ const DEV_ROOT: &str = "/dev";
 
 impl Enumerator {
     pub fn new() -> std::io::Result<Enumerator> {
-        Ok(Enumerator { subsystem: None })
+        Ok(Enumerator { subsystem: HashSet::new() })
     }
 
     pub fn match_subsystem(&mut self, subsystem: &str) -> std::io::Result<()> {
-        self.subsystem = Some(subsystem.to_owned());
+        self.subsystem.insert(subsystem.to_owned());
         Ok(())
     }
 
@@ -27,12 +27,13 @@ impl Enumerator {
         let mut devices = vec![];
         let mut device_path = PathBuf::from(UDEV_ROOT);
         device_path.push("class");
-        device_path.push(self.subsystem.as_ref().unwrap());
-        for dir_entry in device_path.read_dir()? {
-            let dir_entry = dir_entry?;
-
-            if let Ok(device) = Device::from_syspath(&dir_entry.path()) {
-                devices.push(device);
+        for subsystem in &self.subsystem {
+            device_path.push(subsystem);
+            for dir_entry in device_path.read_dir()? {
+                let dir_entry = dir_entry.unwrap();
+                if let Ok(device) = Device::from_syspath(&dir_entry.path()) {
+                    devices.push(device);
+                }
             }
         }
         Ok(Box::new(devices.into_iter()))
