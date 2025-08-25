@@ -9,4 +9,4 @@ license = "MIT OR Apache-2.0"
 keywords = ["udev"]
 
 [dependencies]
-basic-udev = { path = "../basic-udev" }
+basic-udev = { version = "0.1", path = "../basic-udev" }
